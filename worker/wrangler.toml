@@ -1,0 +1,16 @@
+# Opcional: publicar a ponte pelo terminal com `npx wrangler deploy` (dentro da pasta worker/).
+# Quem preferir pode colar o worker.js direto no painel da Cloudflare (veja o README).
+name = "agenda-ponte"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Endereços que podem usar a ponte (sem barra no final)
+ALLOWED_ORIGINS = "https://SEU-USUARIO.github.io,http://localhost:8080"
+# GOOGLE_CLIENT_ID também pode ficar aqui (não é segredo)
+# GOOGLE_CLIENT_ID = "123-abc.apps.googleusercontent.com"
+
+# Segredos (NUNCA coloque neste arquivo). Use:
+#   npx wrangler secret put ACCESS_KEY
+#   npx wrangler secret put ICS_URL
+#   npx wrangler secret put GOOGLE_CLIENT_SECRET

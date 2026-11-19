@@ -1,0 +1,1 @@
+{"name":"agenda","private":true,"type":"module","scripts":{"test":"TZ=America/Sao_Paulo node --test tests/*.test.mjs","start":"python3 -m http.server 8080"}}
