@@ -13,7 +13,7 @@ import { renderList, renderListResults } from './views/list.js';
 import { renderToday } from './views/today.js';
 import { renderTasks } from './views/tasks.js';
 import { renderSettings } from './views/settings.js';
-import { openEventDetail, openEventForm, openTaskForm, openScheduleTask } from './views/forms.js';
+import { openEventDetail, openItemForm, openTask } from './views/forms.js';
 import { startReminders, requestPermission, show as showNotification, permission } from './notify.js';
 
 const settings = loadSettings();
@@ -76,7 +76,7 @@ const ctx = {
   },
   navigate,
   render: scheduleRender,
-  newEvent: (prefill) => openEventForm(ctx, null, prefill),
+  newEvent: (prefill) => openItemForm(ctx, {}, prefill),
   openEvent: (ev) => openEventDetail(ctx, ev),
 };
 
@@ -164,7 +164,6 @@ function renderSidebar() {
   const last = [data.st.outlook.lastSync, data.st.google.lastSync].filter(Boolean).sort((a, b) => b - a)[0];
   el.innerHTML = `
     <div class="brand"><span class="brand-mark">${icon('calendar')}</span>Agenda</div>
-    <button class="btn btn-primary btn-block" data-act="new" ${isConfigured() ? '' : 'disabled'}>${icon('plus')}Novo</button>
     <nav class="nav">${nav
       .map(([p, ic, label, c]) => `<button class="nav-item ${state.page === p ? 'active' : ''}" data-nav="${p}">${icon(ic)}${label}${c ? `<span class="count">${c}</span>` : ''}</button>`)
       .join('')}</nav>
@@ -211,26 +210,32 @@ function miniCalendar() {
 function renderTopbar() {
   const el = document.getElementById('topbar');
   const loading = data.st.outlook.loading || data.st.google.loading;
-  const refreshBtn = isConfigured()
-    ? `<button class="btn btn-ghost icon-btn ${loading ? 'spin' : ''}" data-act="refresh" title="Atualizar" aria-label="Atualizar">${icon('refresh')}</button>`
+  const titles = { today: 'Hoje', calendar: 'Calendário', tasks: 'Demandas', settings: 'Ajustes' };
+  const actions = isConfigured()
+    ? `<button class="btn btn-ghost icon-btn ${loading ? 'spin' : ''}" data-act="refresh" title="Atualizar" aria-label="Atualizar">${icon('refresh')}</button>
+       <button class="btn btn-primary btn-new" data-act="new" title="Novo (N)">${icon('plus')}<span>Novo</span></button>`
     : '';
-  if (state.page === 'calendar') {
-    el.innerHTML = `
-      <button class="btn btn-sm desktop-only" data-act="today">Hoje</button>
-      <button class="btn btn-ghost icon-btn" data-step="-1" aria-label="Anterior">${icon('left')}</button>
-      <button class="btn btn-ghost icon-btn" data-step="1" aria-label="Próximo">${icon('right')}</button>
-      <h1>${esc(calTitle())}</h1>
+  const head = `<div class="tb-main">
+      <span class="brand-mark mobile-only">${icon('calendar')}</span>
+      <h1>${titles[state.page]}</h1>
       <span class="spacer"></span>
-      <button class="btn btn-sm mobile-only" data-act="today">Hoje</button>
+      ${actions}
+    </div>`;
+  const sub =
+    state.page === 'calendar' && isConfigured()
+      ? `<div class="tb-sub">
+      <div class="tb-nav">
+        <button class="btn btn-ghost icon-btn" data-step="-1" aria-label="Anterior">${icon('left')}</button>
+        <h2 class="tb-period">${esc(calTitle())}</h2>
+        <button class="btn btn-ghost icon-btn" data-step="1" aria-label="Próximo">${icon('right')}</button>
+        <button class="btn btn-sm" data-act="today">Hoje</button>
+      </div>
       <div class="segmented" role="tablist">${Object.entries(VIEWS)
         .map(([k, l]) => `<button role="tab" aria-selected="${state.calView === k}" class="${state.calView === k ? 'active' : ''}" data-view="${k}">${l}</button>`)
         .join('')}</div>
-      ${refreshBtn}`;
-  } else {
-    const titles = { today: 'Hoje', tasks: 'Demandas', settings: 'Ajustes' };
-    el.innerHTML = `<span class="brand-mark mobile-only" style="width:28px;height:28px;border-radius:8px;place-items:center">${icon('calendar')}</span>
-      <h1>${titles[state.page]}</h1><span class="spacer"></span>${state.page !== 'settings' ? refreshBtn : ''}`;
-  }
+    </div>`
+      : '';
+  el.innerHTML = head + sub;
 }
 
 function renderBottomNav() {
@@ -244,9 +249,6 @@ function renderBottomNav() {
   document.getElementById('bottomnav').innerHTML = items
     .map(([p, ic, l, c]) => `<button class="${state.page === p ? 'active' : ''}" data-nav="${p}" aria-label="${l}">${icon(ic)}${l}${c ? `<span class="count">${c}</span>` : ''}</button>`)
     .join('');
-  const fab = document.getElementById('fab');
-  fab.innerHTML = icon('plus');
-  fab.hidden = !isConfigured() || state.page === 'settings';
 }
 
 function renderWelcome() {
@@ -360,15 +362,18 @@ async function toggleTask(id) {
   }
 }
 
-function newItem() {
+function newItem(isTask = state.page === 'tasks') {
   if (!isConfigured()) return;
-  if (state.page === 'tasks') return openTaskForm(ctx);
-  const base = state.page === 'calendar' ? state.monthSel || state.date : new Date();
-  const s = new Date(base);
-  const now = new Date();
-  if (sameDay(s, now)) s.setHours(now.getHours() + 1, 0, 0, 0);
-  else s.setHours(9, 0, 0, 0);
-  openEventForm(ctx, null, { start: s, end: new Date(s.getTime() + 3600e3) });
+  if (state.page === 'calendar') {
+    // começa no dia que está aberto no calendário
+    const base = state.monthSel || state.date;
+    const s = new Date(base);
+    const now = new Date();
+    if (sameDay(s, now)) s.setHours(Math.min(now.getHours() + 1, 23), 0, 0, 0);
+    else s.setHours(9, 0, 0, 0);
+    return openItemForm(ctx, {}, { start: s, end: new Date(s.getTime() + 3600e3), isTask });
+  }
+  openItemForm(ctx, {}, { isTask });
 }
 
 document.addEventListener('click', async (e) => {
@@ -380,15 +385,10 @@ document.addEventListener('click', async (e) => {
     e.stopPropagation();
     return toggleTask(toggle.dataset.toggleTask);
   }
-  const sched = t.closest('[data-schedule-task]');
-  if (sched) {
-    const task = findTask(sched.dataset.scheduleTask);
-    return task && openScheduleTask(ctx, task);
-  }
   const taskEl = t.closest('[data-task]');
   if (taskEl) {
     const task = findTask(taskEl.dataset.task);
-    return task && openTaskForm(ctx, task);
+    return task && openTask(ctx, task);
   }
   const evEl = t.closest('[data-ev]');
   if (evEl && !t.closest('a')) {
@@ -450,12 +450,13 @@ document.addEventListener('click', async (e) => {
   if (act) return handleAction(act.dataset.act, act, e);
 });
 
-document.getElementById('fab').addEventListener('click', newItem);
 
 async function handleAction(a, btn) {
   switch (a) {
     case 'new':
       return newItem();
+    case 'new-task':
+      return newItem(true);
     case 'today':
       return goToday();
     case 'refresh':
@@ -602,6 +603,10 @@ document.addEventListener('change', async (e) => {
     return scheduleRender();
   }
   if (t.dataset.actChange === 'demo') return setDemo(t.checked);
+  if (t.matches('[data-task-list-filter]')) {
+    state.taskFilter = t.value;
+    return scheduleRender();
+  }
 });
 
 // Formulários na página (ponte, adição rápida)
@@ -636,25 +641,6 @@ document.addEventListener('submit', async (e) => {
       navigate('today');
       await data.refreshAll();
     } else toast('Link de configuração inválido', 'error');
-    return;
-  }
-  if (kind === 'quick-task') {
-    const title = f.elements.title.value.trim();
-    if (!title) return;
-    const due = f.due?.value || null;
-    const listId = f.listId?.value;
-    const inputId = f.elements.title.id;
-    // limpa antes de salvar (a tela é redesenhada durante o salvamento)
-    f.elements.title.value = '';
-    if (f.due && f.due.type === 'date') f.due.value = '';
-    try {
-      await data.saveTask(null, { title, due, listId });
-      toast('Demanda adicionada', 'ok', 1800);
-    } catch (err) {
-      toast(err.message, 'error');
-      const i = document.getElementById(inputId);
-      if (i) i.value = title;
-    }
     return;
   }
 });

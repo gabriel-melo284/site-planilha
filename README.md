@@ -17,9 +17,8 @@ Funciona no computador e no celular (dá para instalar na tela inicial), com tem
 | **Hoje** | Resumo do dia: próximo compromisso com contagem regressiva e botão **Entrar na reunião** (Teams/Meet/Zoom), agenda do dia, prévia de amanhã, demandas que vencem hoje ou já atrasaram, e conflitos dos próximos 7 dias |
 | **Calendário** | Visões **Dia**, **Semana**, **Mês** e **Lista**. Clique num horário vazio para criar um compromisso, ou arraste (no computador) para escolher o intervalo. No celular, deslize para os lados para trocar de período |
 | **Conflitos** | Aviso quando um compromisso pessoal bate com uma reunião do trabalho, tanto no calendário quanto na hora de criar |
-| **Compromissos** | Criar, editar e excluir no Google Agenda: dia inteiro, local, descrição, lembrete, e marcar como ocupado ou disponível |
-| **Demandas** | Adição rápida, prazo, notas, várias listas, concluir e reabrir. Agrupadas em Atrasadas, Hoje, Amanhã, Próximos 7 dias, Mais adiante e Sem prazo |
-| **Reservar horário** | Sugere o próximo horário livre (sem reuniões) e cria um bloco no Google Agenda ligado à demanda |
+| **Criar** | Um único botão **+ Novo** (canto superior, em todas as abas) com título, **data, início e fim**. Ative **É uma demanda** para que o item também apareça na aba Demandas, com opção de concluir. Tem também **Sugerir horário livre** |
+| **Demandas** | Resumo (atrasadas, hoje, próximas, concluídas), filtro Pendentes/Concluídas, várias listas e conclusão com um toque. Cada demanda mostra o dia e o horário. As que têm horário viram um bloco no calendário (Google Agenda), ligado à tarefa no Google Tasks |
 | **Busca** | Na visão Lista, procura compromissos e demandas nos últimos 60 dias e nos próximos 6 meses |
 | **Lembretes** | Aviso antes dos compromissos e um resumo diário das demandas, enquanto o app estiver aberto (mesmo em segundo plano) |
 | **Sincronização** | Automática a cada X minutos, ao voltar para o app e ao reconectar à internet. Funciona offline com o último dado baixado |

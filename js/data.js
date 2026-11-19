@@ -201,7 +201,14 @@ export function createData(settings, onChange) {
 
   /** Todos os itens (eventos + demandas) no intervalo, com conflitos marcados. */
   function eventsIn(from, to) {
-    const list = [...outlookIn(from, to), ...googleIn(from, to), ...tasksIn(from, to)];
+    const tasksById = new Map(st.tasks.map((t) => [t.id, t]));
+    const google = googleIn(from, to).map((e) => {
+      const t = e.taskId && tasksById.get(e.taskId);
+      return t ? { ...e, task: t, done: t.done } : e;
+    });
+    const withBlock = new Set(google.filter((e) => e.task).map((e) => e.taskId));
+    const tasks = tasksIn(from, to).filter((e) => !withBlock.has(e.task.id));
+    const list = [...outlookIn(from, to), ...google, ...tasks];
     findConflicts(list);
     return list.sort((a, b) => (a.allDay === b.allDay ? a.start - b.start || b.end - a.end : a.allDay ? -1 : 1));
   }
@@ -276,6 +283,47 @@ export function createData(settings, onChange) {
     emit();
   }
 
+  // ---------- Criação unificada (compromisso ou demanda, com data e horário) ----------
+  /**
+   * existing: { event?, task? }  ·  p: { title, start, end, allDay, location, description,
+   *   reminderMin, status, calendarId, isTask, listId }
+   */
+  async function saveItem(existing, p) {
+    const { event, task } = existing || {};
+    if (!p.isTask) {
+      await saveEvent(event || null, p);
+      return;
+    }
+    const t = await saveTask(task || null, {
+      title: p.title,
+      notes: p.description || '',
+      due: ymd(p.start),
+      ...(task ? {} : { listId: p.listId }),
+    });
+    if (p.allDay) {
+      // demanda sem horário: remove o bloco do calendário, se existia
+      if (event) await deleteEvent(event);
+      return;
+    }
+    await saveEvent(event || null, { ...p, taskId: t.id });
+  }
+
+  async function deleteItem(existing) {
+    const { event, task } = existing || {};
+    if (task) {
+      const blocks = blocksForTask(task.id);
+      if (event && !blocks.some((b) => b.id === event.id)) blocks.push(event);
+      await deleteTask(task);
+      for (const b of blocks) {
+        try {
+          await st.provider.deleteEvent(b.calendarId, b.gid);
+        } catch { /* o bloco pode já ter sido removido */ }
+      }
+      for (const calId of new Set(blocks.map((b) => b.calendarId))) await invalidateCalendar(calId);
+      emit();
+    } else if (event) await deleteEvent(event);
+  }
+
   /** Blocos de horário já reservados para uma demanda. */
   const blockRange = () => [addDays(startOfMonth(new Date()), -1), addMonths(startOfMonth(new Date()), 2)];
   function blocksForTask(taskId) {
@@ -299,6 +347,8 @@ export function createData(settings, onChange) {
     deleteTask,
     blocksForTask,
     blockRange,
+    saveItem,
+    deleteItem,
     calColor,
     hasOutlook,
     googleOn,

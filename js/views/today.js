@@ -111,12 +111,8 @@ export function renderToday(ctx) {
           <span class="muted">bate com <b>${esc(w.title)}</b> · ${fWeekdayShort(w.start)} ${fDayMonth(w.start)}, ${hm(w.start)}–${hm(w.end)}</span>
         </div>`).join('')}</div>` : ''}
       <div class="card">
-        <h3>${icon('tasks')}Demandas <button class="btn btn-sm btn-ghost" data-nav="tasks">Ver todas</button></h3>
-        ${data.googleOn() ? `<form class="quick-add" data-form="quick-task" style="margin-bottom:12px">
-          <input class="input" name="title" id="today-quick" placeholder="Nova demanda para hoje…" autocomplete="off" data-keep required>
-          <button class="btn btn-primary icon-btn" aria-label="Adicionar">${icon('plus')}</button>
-          <input type="hidden" name="due" value="${todayStr}">
-        </form>` : ''}
+        <h3>${icon('tasks')}Demandas
+          <span class="card-actions">${data.googleOn() ? `<button class="btn btn-sm btn-ghost icon-btn" data-act="new-task" aria-label="Nova demanda" title="Nova demanda">${icon('plus')}</button>` : ''}<button class="btn btn-sm btn-ghost" data-nav="tasks">Ver todas</button></span></h3>
         ${dueNow.length ? dueNow.map((t) => taskRow(ctx, t)).join('') : `<p class="faint" style="margin:0">${pending.length ? 'Nada vencendo hoje. 🎉' : 'Nenhuma demanda pendente.'}</p>`}
       </div>
     </div>
