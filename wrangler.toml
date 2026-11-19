@@ -1,0 +1,20 @@
+# Configuração da ponte (Cloudflare Worker).
+# A Cloudflare usa este arquivo quando o Worker está conectado ao repositório no GitHub:
+# a cada push no branch de produção, ela publica o worker/worker.js automaticamente.
+
+# O nome precisa ser IGUAL ao nome do Worker no painel da Cloudflare.
+name = "site-planilha"
+main = "worker/worker.js"
+compatibility_date = "2025-01-01"
+
+# Mantém as variáveis de texto criadas no painel (ex.: GOOGLE_CLIENT_ID) a cada nova publicação.
+keep_vars = true
+
+[vars]
+# Endereço do app que pode usar a ponte (sem barra no final).
+ALLOWED_ORIGINS = "https://gabriel-melo284.github.io"
+
+# Segredos NUNCA vão neste arquivo. Cadastre no painel da Cloudflare
+# (Worker → Configurações → Variáveis e segredos), tipo "Segredo":
+#   ACCESS_KEY, ICS_URL, GOOGLE_CLIENT_SECRET
+# E como "Texto": GOOGLE_CLIENT_ID

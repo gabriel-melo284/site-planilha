@@ -96,7 +96,7 @@ Funciona no computador e no celular (dá para instalar na tela inicial), com tem
 
 5. Copie o endereço do Worker, algo como `https://agenda-ponte.SEU-NOME.workers.dev`.
 
-> Se preferir o terminal, há um [`worker/wrangler.toml`](worker/wrangler.toml) pronto: rode `npx wrangler deploy` e depois `npx wrangler secret put ...` para cada segredo.
+> **Alternativa (recomendada no celular): conectar o Worker ao GitHub.** Em **Workers e Pages → Criar → Importar um repositório**, escolha `site-planilha`, com branch de produção `main`, caminho raiz `/` e comando de implantação `npx wrangler deploy`. A Cloudflare usa o [`wrangler.toml`](wrangler.toml) da raiz e publica a ponte sozinha a cada atualização do `main`. O campo `name` desse arquivo precisa ser igual ao nome do Worker no painel. As variáveis e os segredos continuam sendo cadastrados no painel, como na tabela acima.
 
 ### 5. Conectar o app
 
@@ -142,6 +142,6 @@ js/outlook.js                             leitura do ICS e recorrências
 js/google.js                              login OAuth (PKCE) e APIs do Google
 js/demo.js                                modo demonstração
 js/views/                                 telas (hoje, dia/semana, mês, lista, demandas, ajustes, formulários)
-worker/worker.js                          ponte (Cloudflare Worker)
+worker/worker.js, wrangler.toml           ponte (Cloudflare Worker)
 tests/                                    testes automatizados (node --test)
 ```
