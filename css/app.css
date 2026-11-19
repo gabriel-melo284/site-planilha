@@ -148,7 +148,11 @@ a { color: var(--accent); }
 .tb-nav { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
 .tb-period { font-size: 16px; font-weight: 650; margin: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .tb-nav .btn-sm { margin-left: 4px; }
-.view { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.view { flex: 1; min-height: 0; overflow: auto; position: relative; will-change: transform; }
+/* No calendário, o navegador cuida só da rolagem vertical; o arraste lateral troca o período */
+.view[data-page='calendar'], .view[data-page='calendar'] .tl-body { touch-action: pan-y; overscroll-behavior-x: none; }
+.view.swiping { user-select: none; -webkit-user-select: none; }
+.view.swiping .ev, .view.swiping .mcell { pointer-events: none; }
 
 /* ---------- Botões / campos ---------- */
 .btn {
@@ -565,3 +569,9 @@ input[type='color'].input { -webkit-appearance: none; appearance: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Itens concluídos ---------- */
+.tag-ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.modal-title.is-done { text-decoration: line-through; color: var(--text-3); }
+.cal-dot { display: inline-flex; align-items: center; gap: 5px; }
+.cal-dot i { width: 8px; height: 8px; border-radius: 50%; flex: none; }

@@ -1,13 +1,16 @@
-// Camada de dados: junta Outlook (ICS), Google Agenda e Google Tasks
+// Camada de dados: junta Outlook (ICS) e Google Agenda. Todo item cadastrado é um evento
+// do Google Agenda que pode ser marcado como concluído (aba Demandas).
 import { bridge } from './bridge.js';
 import { parseIcs, expandRange } from './outlook.js';
 import { createGoogleProvider, AuthError } from './google.js';
 import { createDemoProvider, demoIcs } from './demo.js';
 import { load, save } from './store.js';
-import { addMonths, startOfMonth, parseYmd, addDays, ymd } from './dates.js';
+import { addMonths, startOfMonth, startOfDay, addDays, ymd } from './dates.js';
 import { findConflicts } from './conflicts.js';
 
 const monthKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}`;
+// janela da aba Demandas: 90 dias para trás (atrasados) e 1 ano à frente
+export const itemsWindow = () => [addDays(startOfDay(new Date()), -90), addDays(startOfDay(new Date()), 366)];
 
 export function createData(settings, onChange) {
   const st = {
@@ -15,8 +18,7 @@ export function createData(settings, onChange) {
     outlook: { parsed: null, lastSync: null, error: null, loading: false },
     google: { error: null, loading: false, lastSync: null },
     calendars: load('calendars', []),
-    taskLists: [],
-    tasks: load('tasks', []),
+    items: [],
     months: new Map(), // calId → Map(monthKey → events[])
     pending: new Map(),
     expandCache: new Map(),
@@ -26,7 +28,13 @@ export function createData(settings, onChange) {
   function setupProvider() {
     st.months.clear();
     st.expandCache.clear();
+    st.items = settings.demo ? [] : reviveItems(load('items', []));
     st.provider = settings.demo ? createDemoProvider() : createGoogleProvider(settings);
+  }
+
+  // cache local dos itens (abre rápido e offline)
+  function reviveItems(list) {
+    return (list || []).map((e) => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
   }
   setupProvider();
 
@@ -81,14 +89,13 @@ export function createData(settings, onChange) {
     }
   }
 
-  async function refreshTasks() {
-    const lists = await st.provider.listTaskLists();
-    st.taskLists = lists;
-    if (!settings.taskList || !lists.some((l) => l.id === settings.taskList)) settings.taskList = lists[0]?.id || null;
-    const all = [];
-    for (const l of lists) all.push(...(await st.provider.listTasks(l.id)));
-    st.tasks = all;
-    if (!settings.demo) save('tasks', all);
+  /** Baixa os itens (com marcação do app) das agendas que você pode editar. */
+  async function refreshItems() {
+    const [from, to] = itemsWindow();
+    const cals = st.calendars.filter((c) => c.writable);
+    const lists = await Promise.all(cals.map((c) => st.provider.listItems(c.id, from, to)));
+    st.items = lists.flat();
+    if (!settings.demo) save('items', st.items);
   }
 
   async function refreshGoogle() {
@@ -98,7 +105,7 @@ export function createData(settings, onChange) {
     try {
       await refreshCalendars();
       st.months.clear();
-      await refreshTasks();
+      await refreshItems();
       st.google.error = null;
       st.google.lastSync = new Date();
     } catch (e) {
@@ -177,65 +184,54 @@ export function createData(settings, onChange) {
     return [...out.values()];
   }
 
-  function tasksIn(from, to) {
-    if (!settings.showTasks) return [];
-    return st.tasks
-      .filter((t) => t.due && !t.parent)
-      .map((t) => {
-        const s = parseYmd(t.due);
-        return {
-          id: 'task:' + t.id,
-          source: 'task',
-          task: t,
-          title: t.title,
-          start: s,
-          end: addDays(s, 1),
-          allDay: true,
-          done: t.done,
-          color: settings.taskColor,
-          readOnly: false,
-        };
-      })
-      .filter((e) => e.start < to && e.end > from);
-  }
-
-  /** Todos os itens (eventos + demandas) no intervalo, com conflitos marcados. */
+  /** Todos os eventos no intervalo, com conflitos marcados. */
   function eventsIn(from, to) {
-    const tasksById = new Map(st.tasks.map((t) => [t.id, t]));
-    const google = googleIn(from, to).map((e) => {
-      const t = e.taskId && tasksById.get(e.taskId);
-      return t ? { ...e, task: t, done: t.done } : e;
-    });
-    const withBlock = new Set(google.filter((e) => e.task).map((e) => e.taskId));
-    const tasks = tasksIn(from, to).filter((e) => !withBlock.has(e.task.id));
-    const list = [...outlookIn(from, to), ...google, ...tasks];
+    const list = [...outlookIn(from, to), ...googleIn(from, to)];
     findConflicts(list);
     return list.sort((a, b) => (a.allDay === b.allDay ? a.start - b.start || b.end - a.end : a.allDay ? -1 : 1));
+  }
+
+  /** Itens da aba Demandas (com cor e nome da agenda). */
+  function items() {
+    const vis = new Set(visibleCalendars().map((c) => c.id));
+    return st.items
+      .filter((e) => vis.has(e.calendarId))
+      .map((e) => ({ ...e, color: e.color || calColor(e.calendarId), calendarName: st.calendars.find((c) => c.id === e.calendarId)?.name }));
+  }
+
+  /** Itens pendentes que já passaram (atrasados) ou acontecem hoje. */
+  function dueNow() {
+    const now = new Date();
+    const end = addDays(startOfDay(now), 1);
+    return items().filter((e) => !e.done && e.start < end).sort((a, b) => a.start - b.start);
   }
 
   /** Recarrega os meses já baixados de uma agenda (sem apagar a tela no meio). */
   async function invalidateCalendar(calId) {
     const map = st.months.get(calId);
-    if (!map) return;
-    await Promise.all(
-      [...map.keys()].map(async (key) => {
+    const jobs = [refreshItems().catch(() => {})];
+    if (map) {
+      for (const key of [...map.keys()]) {
         const [y, m] = key.split('-').map(Number);
         const s = new Date(y, m - 1, 1);
-        try {
-          map.set(key, await st.provider.listEvents(calId, s, addMonths(s, 1)));
-        } catch {
-          map.delete(key);
-        }
-      }),
-    );
+        jobs.push(
+          st.provider.listEvents(calId, s, addMonths(s, 1)).then(
+            (evs) => map.set(key, evs),
+            () => map.delete(key),
+          ),
+        );
+      }
+    }
+    await Promise.all(jobs);
   }
 
   // ---------- Ações ----------
+  /** Cria (sempre como item do app) ou edita um evento no Google Agenda. */
   async function saveEvent(existing, data) {
     const calId = existing?.calendarId || data.calendarId || settings.defaultCalendar;
     if (!calId) throw new Error('Nenhuma agenda do Google disponível');
     if (existing) await st.provider.updateEvent(calId, existing.gid, data);
-    else await st.provider.createEvent(calId, data);
+    else await st.provider.createEvent(calId, { ...data, item: true });
     await invalidateCalendar(calId);
     emit();
   }
@@ -246,89 +242,25 @@ export function createData(settings, onChange) {
     emit();
   }
 
-  async function saveTask(existing, data) {
-    const listId = existing?.listId || data.listId || settings.taskList;
-    if (!listId) throw new Error('Nenhuma lista de tarefas disponível');
-    let t;
-    if (existing) {
-      t = await st.provider.updateTask(listId, existing.id, data);
-      st.tasks = st.tasks.map((x) => (x.id === existing.id ? { ...x, ...t } : x));
-    } else {
-      t = await st.provider.createTask(listId, data);
-      st.tasks = [t, ...st.tasks];
-    }
-    if (!settings.demo) save('tasks', st.tasks);
-    emit();
-    return t;
-  }
-
-  async function toggleTask(task) {
-    const done = !task.done;
-    // atualização otimista
-    st.tasks = st.tasks.map((x) => (x.id === task.id ? { ...x, done, completedAt: done ? new Date().toISOString() : null } : x));
+  /** Marca/desmarca como concluído (atualização otimista). */
+  async function toggleDone(ev) {
+    const done = !ev.done;
+    const doneAt = done ? new Date().toISOString() : null;
+    const patch = (e) => (e.id === ev.id ? { ...e, done, doneAt, item: true } : e);
+    const had = st.items.some((e) => e.id === ev.id);
+    st.items = had ? st.items.map(patch) : [...st.items, { ...ev, done, doneAt, item: true }];
+    for (const map of st.months.values()) for (const [k, evs] of map) map.set(k, evs.map(patch));
     emit();
     try {
-      await saveTask(task, { done });
+      await st.provider.setDone(ev.calendarId, ev.gid, done);
+      if (!settings.demo) save('items', st.items);
     } catch (e) {
-      st.tasks = st.tasks.map((x) => (x.id === task.id ? { ...x, done: !done } : x));
+      const undo = (x) => (x.id === ev.id ? { ...x, done: !done } : x);
+      st.items = had ? st.items.map(undo) : st.items.filter((x) => x.id !== ev.id);
+      for (const map of st.months.values()) for (const [k, evs] of map) map.set(k, evs.map(undo));
       emit();
       throw e;
     }
-  }
-
-  async function deleteTask(task) {
-    await st.provider.deleteTask(task.listId, task.id);
-    st.tasks = st.tasks.filter((x) => x.id !== task.id);
-    if (!settings.demo) save('tasks', st.tasks);
-    emit();
-  }
-
-  // ---------- Criação unificada (compromisso ou demanda, com data e horário) ----------
-  /**
-   * existing: { event?, task? }  ·  p: { title, start, end, allDay, location, description,
-   *   reminderMin, status, calendarId, isTask, listId }
-   */
-  async function saveItem(existing, p) {
-    const { event, task } = existing || {};
-    if (!p.isTask) {
-      await saveEvent(event || null, p);
-      return;
-    }
-    const t = await saveTask(task || null, {
-      title: p.title,
-      notes: p.description || '',
-      due: ymd(p.start),
-      ...(task ? {} : { listId: p.listId }),
-    });
-    if (p.allDay) {
-      // demanda sem horário: remove o bloco do calendário, se existia
-      if (event) await deleteEvent(event);
-      return;
-    }
-    await saveEvent(event || null, { ...p, taskId: t.id });
-  }
-
-  async function deleteItem(existing) {
-    const { event, task } = existing || {};
-    if (task) {
-      const blocks = blocksForTask(task.id);
-      if (event && !blocks.some((b) => b.id === event.id)) blocks.push(event);
-      await deleteTask(task);
-      for (const b of blocks) {
-        try {
-          await st.provider.deleteEvent(b.calendarId, b.gid);
-        } catch { /* o bloco pode já ter sido removido */ }
-      }
-      for (const calId of new Set(blocks.map((b) => b.calendarId))) await invalidateCalendar(calId);
-      emit();
-    } else if (event) await deleteEvent(event);
-  }
-
-  /** Blocos de horário já reservados para uma demanda. */
-  const blockRange = () => [addDays(startOfMonth(new Date()), -1), addMonths(startOfMonth(new Date()), 2)];
-  function blocksForTask(taskId) {
-    const [from, to] = blockRange();
-    return googleIn(from, to).filter((e) => e.taskId === taskId).sort((a, b) => a.start - b.start);
   }
 
   return {
@@ -340,15 +272,11 @@ export function createData(settings, onChange) {
     refreshGoogle,
     ensureRange,
     eventsIn,
+    items,
+    dueNow,
     saveEvent,
     deleteEvent,
-    saveTask,
-    toggleTask,
-    deleteTask,
-    blocksForTask,
-    blockRange,
-    saveItem,
-    deleteItem,
+    toggleDone,
     calColor,
     hasOutlook,
     googleOn,

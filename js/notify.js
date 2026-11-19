@@ -33,13 +33,13 @@ export async function show(title, body, tag) {
 
 /**
  * Agenda verificações periódicas.
- * getData() → { events, tasks, settings }
+ * getData() → { events, items (pendentes de hoje/atrasados), settings }
  * onInApp(msg) → mostra aviso dentro do app também
  */
 export function startReminders(getData, onInApp) {
   stopReminders();
   const tick = () => {
-    const { events, tasks, settings } = getData();
+    const { events, items, settings } = getData();
     const cfg = settings.notify;
     if (!cfg.enabled) return;
     const now = Date.now();
@@ -48,7 +48,7 @@ export function startReminders(getData, onInApp) {
     const lead = Math.max(0, Number(cfg.lead) || 0) * 60e3;
 
     for (const e of events) {
-      if (e.allDay || e.declined || e.source === 'task') continue;
+      if (e.allDay || e.declined || e.done) continue;
       const fireAt = e.start.getTime() - lead;
       const key = `${e.id}@${e.start.getTime()}`;
       if (now >= fireAt && now < e.start.getTime() + 60e3 && !sent[key]) {
@@ -62,20 +62,20 @@ export function startReminders(getData, onInApp) {
       }
     }
 
-    if (cfg.tasks && tasks.length) {
+    if (cfg.tasks && items.length) {
       const [h, m] = String(cfg.taskTime || '09:00').split(':').map(Number);
       const target = new Date();
       target.setHours(h || 0, m || 0, 0, 0);
       const dayKey = 'tasks@' + ymd(new Date());
       if (now >= target.getTime() && !sent[dayKey]) {
-        const today = ymd(new Date());
-        const due = tasks.filter((t) => !t.done && t.due && t.due <= today);
+        const now2 = new Date();
+        const due = items;
         sent[dayKey] = now;
         changed = true;
         if (due.length) {
-          const late = due.filter((t) => t.due < today).length;
+          const late = due.filter((t) => t.end <= now2).length;
           const body = due.slice(0, 4).map((t) => '• ' + t.title).join('\n') + (due.length > 4 ? `\n+${due.length - 4}` : '');
-          show(`${due.length} demanda${due.length > 1 ? 's' : ''} para hoje${late ? ` (${late} atrasada${late > 1 ? 's' : ''})` : ''}`, body, dayKey);
+          show(`${due.length} pendente${due.length > 1 ? 's' : ''} para hoje${late ? ` (${late} atrasado${late > 1 ? 's' : ''})` : ''}`, body, dayKey);
         }
       }
     }

@@ -1,8 +1,8 @@
 // Tela "Hoje": resumo do dia
 import { esc, icon } from '../ui.js';
-import { addDays, fCountdown, fDayMonth, fDuration, fFull, fWeekdayShort, hm, startOfDay, ymd } from '../dates.js';
+import { addDays, fCountdown, fDayMonth, fDuration, fFull, fWeekdayShort, hm, startOfDay } from '../dates.js';
 import { itemRow } from './list.js';
-import { taskRow } from './tasks.js';
+import { itemTaskRow } from './tasks.js';
 
 function greeting(now) {
   const h = now.getHours();
@@ -15,14 +15,13 @@ export function renderToday(ctx) {
   const d0 = startOfDay(now);
   const d1 = addDays(d0, 1);
   const week = ctx.events(d0, addDays(d0, 7));
-  const today = week.filter((e) => e.source !== 'task' && e.start < d1 && e.end > d0);
+  const today = week.filter((e) => e.start < d1 && e.end > d0);
   const timed = today.filter((e) => !e.allDay && !e.declined);
   const work = timed.filter((e) => e.source === 'outlook');
   const meetingMs = work.reduce((s, e) => s + (Math.min(e.end, d1) - Math.max(e.start, d0)), 0);
 
-  const todayStr = ymd(now);
-  const pending = data.st.tasks.filter((t) => !t.done && !t.parent);
-  const dueNow = pending.filter((t) => t.due && t.due <= todayStr).sort((a, b) => a.due.localeCompare(b.due));
+  const dueNow = data.dueNow(); // atrasados + pendentes de hoje
+  const pendingAll = data.items().filter((e) => !e.done).length;
 
   // próximo / atual
   const current = timed.find((e) => e.start <= now && e.end > now);
@@ -65,7 +64,7 @@ export function renderToday(ctx) {
   }
   conflicts.sort((a, b) => a.work.start - b.work.start);
 
-  const tomorrow = week.filter((e) => e.source !== 'task' && e.start < addDays(d1, 1) && e.end > d1);
+  const tomorrow = week.filter((e) => e.start < addDays(d1, 1) && e.end > d1);
   const tomorrowFirst = tomorrow.find((e) => !e.allDay);
 
   const connectHint = settings.demo
@@ -86,7 +85,7 @@ export function renderToday(ctx) {
         <div class="stat"><b>${work.length}</b><span>reuniões</span></div>
         <div class="stat"><b>${meetingMs ? fDuration(meetingMs) : '0h'}</b><span>em reuniões</span></div>
         <div class="stat"><b>${timed.length - work.length}</b><span>pessoais</span></div>
-        <div class="stat"><b>${dueNow.length}</b><span>demandas p/ hoje</span></div>
+        <div class="stat"><b>${dueNow.length}</b><span>pendentes hoje</span></div>
       </div>
     </div>
     <div>
@@ -112,8 +111,8 @@ export function renderToday(ctx) {
         </div>`).join('')}</div>` : ''}
       <div class="card">
         <h3>${icon('tasks')}Demandas
-          <span class="card-actions">${data.googleOn() ? `<button class="btn btn-sm btn-ghost icon-btn" data-act="new-task" aria-label="Nova demanda" title="Nova demanda">${icon('plus')}</button>` : ''}<button class="btn btn-sm btn-ghost" data-nav="tasks">Ver todas</button></span></h3>
-        ${dueNow.length ? dueNow.map((t) => taskRow(ctx, t)).join('') : `<p class="faint" style="margin:0">${pending.length ? 'Nada vencendo hoje. 🎉' : 'Nenhuma demanda pendente.'}</p>`}
+          <span class="card-actions"><button class="btn btn-sm btn-ghost" data-nav="tasks">Ver todas</button></span></h3>
+        ${dueNow.length ? dueNow.map(itemTaskRow).join('') : `<p class="faint" style="margin:0">${pendingAll ? 'Nada pendente para hoje. 🎉' : 'Nenhum item pendente.'}</p>`}
       </div>
     </div>
   </div>`;

@@ -1,4 +1,4 @@
-// Google Agenda + Google Tasks (login OAuth com PKCE, tokens trocados via ponte)
+// Google Agenda (login OAuth com PKCE, tokens trocados via ponte)
 import { bridge, health, BridgeError } from './bridge.js';
 import { load, save } from './store.js';
 import { parseYmd, ymd } from './dates.js';
@@ -6,13 +6,11 @@ import { findMeetingLink } from './outlook.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const CAL = 'https://www.googleapis.com/calendar/v3';
-const TASKS = 'https://tasks.googleapis.com/tasks/v1';
 const SCOPES = [
   'openid',
   'email',
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/tasks',
 ];
 
 export const EVENT_COLORS = {
@@ -202,7 +200,10 @@ export function createGoogleProvider(settings) {
       meetingUrl: ev.hangoutLink || findMeetingLink(ev.location, ev.description),
       readOnly: !cal.writable,
       color: ev.colorId ? EVENT_COLORS[ev.colorId] : null,
-      taskId: ev.extendedProperties?.private?.agendaTaskId || null,
+      // item do app: pode ser concluído (marcação guardada no próprio evento)
+      item: ev.extendedProperties?.private?.agendaItem === '1',
+      done: ev.extendedProperties?.private?.agendaDone === '1',
+      doneAt: ev.extendedProperties?.private?.agendaDoneAt || null,
       reminderMin: ev.reminders?.useDefault ? null : popup ? popup.minutes : -1,
       htmlLink: ev.htmlLink,
     };
@@ -221,7 +222,7 @@ export function createGoogleProvider(settings) {
     if (d.reminderMin === null || d.reminderMin === undefined) body.reminders = { useDefault: true };
     else if (d.reminderMin < 0) body.reminders = { useDefault: false, overrides: [] };
     else body.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: d.reminderMin }] };
-    if (d.taskId !== undefined) body.extendedProperties = { private: { agendaTaskId: d.taskId || '' } };
+    if (d.item) body.extendedProperties = { private: { agendaItem: '1' } };
     return body;
   }
 
@@ -263,56 +264,21 @@ export function createGoogleProvider(settings) {
       await api(evUrl(calId, gid), { method: 'DELETE' });
     },
 
-    // ---------- Tarefas ----------
-    async listTaskLists() {
-      const items = await paged(`${TASKS}/users/@me/lists`, { maxResults: 100 });
-      return items.map((l) => ({ id: l.id, title: l.title }));
-    },
-    async listTasks(listId) {
-      const items = await paged(`${TASKS}/lists/${encodeURIComponent(listId)}/tasks`, {
-        maxResults: 100,
-        showCompleted: 'true',
-        showHidden: 'true',
+    /** Itens criados pelo app (com marcação), num intervalo amplo, numa só chamada. */
+    async listItems(calId, from, to) {
+      const items = await paged(`${CAL}/calendars/${encodeURIComponent(calId)}/events`, {
+        timeMin: from.toISOString(),
+        timeMax: to.toISOString(),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: 2500,
+        privateExtendedProperty: 'agendaItem=1',
       });
-      return items.filter((t) => !t.deleted && t.title !== undefined).map((t) => normTask(t, listId));
+      return items.filter((e) => e.status !== 'cancelled').map((e) => fromGoogle(e, calId));
     },
-    async createTask(listId, d) {
-      return normTask(await api(`${TASKS}/lists/${encodeURIComponent(listId)}/tasks`, { method: 'POST', body: taskBody(d) }), listId);
-    },
-    async updateTask(listId, id, d) {
-      return normTask(
-        await api(`${TASKS}/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: taskBody(d) }),
-        listId,
-      );
-    },
-    async deleteTask(listId, id) {
-      await api(`${TASKS}/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    async setDone(calId, gid, done) {
+      const body = { extendedProperties: { private: { agendaItem: '1', agendaDone: done ? '1' : '', agendaDoneAt: done ? new Date().toISOString() : '' } } };
+      return fromGoogle(await api(evUrl(calId, gid), { method: 'PATCH', body }), calId);
     },
   };
-}
-
-function normTask(t, listId) {
-  return {
-    id: t.id,
-    listId,
-    title: t.title || '(Sem título)',
-    notes: t.notes || '',
-    due: t.due ? t.due.slice(0, 10) : null,
-    done: t.status === 'completed',
-    completedAt: t.completed || null,
-    position: t.position || '',
-    parent: t.parent || null,
-  };
-}
-
-function taskBody(d) {
-  const b = {};
-  if (d.title !== undefined) b.title = d.title;
-  if (d.notes !== undefined) b.notes = d.notes;
-  if (d.due !== undefined) b.due = d.due ? `${d.due}T00:00:00.000Z` : null;
-  if (d.done !== undefined) {
-    b.status = d.done ? 'completed' : 'needsAction';
-    if (!d.done) b.completed = null;
-  }
-  return b;
 }

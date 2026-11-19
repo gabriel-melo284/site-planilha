@@ -31,7 +31,6 @@ export function layoutDay(segs) {
 export function evClasses(ev) {
   return [
     'ev',
-    ev.source === 'task' ? 'ev-task' : '',
     ev.status === 'tentative' ? 'tentative' : '',
     ev.status === 'free' ? 'free' : '',
     ev.declined ? 'declined' : '',
@@ -43,17 +42,12 @@ export function evClasses(ev) {
 export function evIcons(ev) {
   let s = '';
   if (ev.conflicts?.length) s += `<span class="badge-warn" title="Conflito de horário">${icon('alert')}</span>`;
-  if (ev.taskId) s += icon('target');
+  if (ev.done) s += icon('check');
   if (ev.meetingUrl) s += icon('video');
   return s;
 }
 
 export function allDayChip(ev) {
-  if (ev.source === 'task') {
-    return `<div class="${evClasses(ev)}" style="--c:${esc(ev.color)}" data-ev="${esc(ev.id)}" title="${esc(ev.title)}">
-      <button class="task-check ${ev.done ? 'on' : ''}" data-toggle-task="${esc(ev.task.id)}" aria-label="${ev.done ? 'Reabrir' : 'Concluir'} demanda"></button>
-      <span class="ev-title">${esc(ev.title)}</span></div>`;
-  }
   return `<button class="${evClasses(ev)}" style="--c:${esc(ev.color)}" data-ev="${esc(ev.id)}" title="${esc(ev.title)}">
     <span class="ev-title">${evIcons(ev)}${esc(ev.title)}</span></button>`;
 }
@@ -116,12 +110,12 @@ export function renderTimeline(ctx, start, days) {
 
   return `<div class="tl ${days > 1 ? 'tl-week' : 'tl-day'}" style="--days:${days}">
     <div class="tl-head"><div></div>${head}</div>
-    ${hasAllDay || ctx.settings.showTasks ? `<div class="tl-allday"><div class="lbl">dia todo</div>${allDayCells}</div>` : ''}
+    ${hasAllDay ? `<div class="tl-allday"><div class="lbl">dia todo</div>${allDayCells}</div>` : ''}
     <div class="tl-body" id="tl-body"><div class="tl-grid"><div class="tl-hours">${hours}</div>${cols}</div></div>
   </div>`;
 }
 
-/** Interações: clicar/arrastar no horário vazio cria compromisso. */
+/** Interações: com o mouse, clicar/arrastar no horário vazio cria um item. No toque, apenas rolagem. */
 export function bindTimeline(root, ctx) {
   const body = root.querySelector('#tl-body');
   if (!body) return;
@@ -154,7 +148,8 @@ export function bindTimeline(root, ctx) {
 
   body.addEventListener('pointerdown', (e) => {
     const col = e.target.closest('.tl-col');
-    if (!col || e.target.closest('.ev') || e.button !== 0) return;
+    // Só o mouse cria pelo horário vazio; no toque, o calendário apenas rola/desliza.
+    if (!col || e.target.closest('.ev') || e.button !== 0 || e.pointerType !== 'mouse') return;
     const m = minuteAt(col, e.clientY);
     drag = { col, a: m, cur: m, type: e.pointerType, moved: false, y: e.clientY };
     if (e.pointerType === 'mouse') {

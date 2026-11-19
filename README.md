@@ -4,7 +4,7 @@ Um app web (PWA) que junta numa tela só:
 
 - **Trabalho**: as reuniões do seu **Outlook**, que entram sozinhas pelo calendário publicado (ICS). Ninguém precisa mudar nada: quem te convida continua usando o Outlook.
 - **Vida pessoal**: os compromissos do seu **Google Agenda**, com leitura e escrita, e você escolhe quais agendas aparecem.
-- **Demandas**: as tarefas do **Google Tasks**, com prazo, e você pode **reservar horário no calendário** para elas.
+- **Um cadastro só**: tudo o que você cria tem data e horário, vai para o Google Agenda e pode ser **concluído**. A aba Demandas mostra o que está atrasado, pendente e concluído.
 
 Funciona no computador e no celular (dá para instalar na tela inicial), com tema claro ou escuro.
 
@@ -14,11 +14,11 @@ Funciona no computador e no celular (dá para instalar na tela inicial), com tem
 
 | Área | O que faz |
 | --- | --- |
-| **Hoje** | Resumo do dia: próximo compromisso com contagem regressiva e botão **Entrar na reunião** (Teams/Meet/Zoom), agenda do dia, prévia de amanhã, demandas que vencem hoje ou já atrasaram, e conflitos dos próximos 7 dias |
-| **Calendário** | Visões **Dia**, **Semana**, **Mês** e **Lista**. Clique num horário vazio para criar um compromisso, ou arraste (no computador) para escolher o intervalo. No celular, deslize para os lados para trocar de período |
+| **Hoje** | Resumo do dia: próximo compromisso com contagem regressiva e botão **Entrar na reunião** (Teams/Meet/Zoom), agenda do dia, prévia de amanhã, itens pendentes e atrasados (com conclusão em um toque) e conflitos dos próximos 7 dias |
+| **Calendário** | Visões **Dia**, **Semana**, **Mês** e **Lista**. No celular, arrastar para os lados troca o período com animação, e tocar no calendário só rola a tela. No computador, clicar ou arrastar o mouse num horário vazio já abre o cadastro com esse horário |
 | **Conflitos** | Aviso quando um compromisso pessoal bate com uma reunião do trabalho, tanto no calendário quanto na hora de criar |
-| **Criar** | Um único botão **+ Novo** (canto superior, em todas as abas) com título, **data, início e fim**. Ative **É uma demanda** para que o item também apareça na aba Demandas, com opção de concluir. Tem também **Sugerir horário livre** |
-| **Demandas** | Resumo (atrasadas, hoje, próximas, concluídas), filtro Pendentes/Concluídas, várias listas e conclusão com um toque. Cada demanda mostra o dia e o horário. As que têm horário viram um bloco no calendário (Google Agenda), ligado à tarefa no Google Tasks |
+| **Cadastro único** | Botão **+ Novo** no canto superior de todas as abas: título, **data, início e fim** (ou dia inteiro), local, lembrete e descrição. Tudo vai para o Google Agenda. Tem também **Sugerir horário livre** |
+| **Demandas** | Lista de tudo o que você cadastrou: **atrasados** (passaram sem concluir), hoje, amanhã, próximos e **concluídos**. Concluir ou reabrir com um toque, também pelo detalhe de qualquer evento pessoal. A marcação fica salva no próprio evento do Google Agenda, então aparece em todos os aparelhos |
 | **Busca** | Na visão Lista, procura compromissos e demandas nos últimos 60 dias e nos próximos 6 meses |
 | **Lembretes** | Aviso antes dos compromissos e um resumo diário das demandas, enquanto o app estiver aberto (mesmo em segundo plano) |
 | **Sincronização** | Automática a cada X minutos, ao voltar para o app e ao reconectar à internet. Funciona offline com o último dado baixado |
@@ -34,7 +34,7 @@ Funciona no computador e no celular (dá para instalar na tela inicial), com tem
                    Cloudflare Worker  ◄── guarda o link ICS e o segredo do Google
                    (a "ponte")
                            ▲
- Google Agenda/Tasks ◄─────┼──────── App Agenda (GitHub Pages, no seu navegador)
+ Google Agenda ◄───────────┼──────── App Agenda (GitHub Pages, no seu navegador)
    (API, com login)        │
 ```
 
@@ -69,7 +69,7 @@ Funciona no computador e no celular (dá para instalar na tela inicial), com tem
 ### 3. Criar o login do Google (Google Cloud)
 
 1. Acesse [console.cloud.google.com](https://console.cloud.google.com/) e crie um projeto (por exemplo, "Agenda").
-2. Em **APIs e serviços → Biblioteca**, ative a **Google Calendar API** e a **Google Tasks API**.
+2. Em **APIs e serviços → Biblioteca**, ative a **Google Calendar API**.
 3. Em **APIs e serviços → Tela de consentimento OAuth** (ou "Google Auth Platform"):
    - Tipo **Externo**, com o nome do app "Agenda" e o seu e-mail.
    - Em **Público-alvo**, clique em **Publicar app** para colocá-lo **Em produção**. No modo "Teste", o Google desconecta a cada 7 dias. Como o app é só seu, não precisa passar por verificação: no primeiro login vai aparecer "O Google não verificou este app", e você clica em **Avançado → Acessar Agenda**.
@@ -102,7 +102,7 @@ Funciona no computador e no celular (dá para instalar na tela inicial), com tem
 1. Abra o app e vá em **Ajustes**.
 2. Em **Conexão**, preencha a **URL da ponte** e a **Chave de acesso** (a `ACCESS_KEY`) e clique em **Salvar e testar**. Os três indicadores devem ficar verdes.
 3. Clique em **Conectar Google** e autorize.
-4. Escolha as agendas que vão aparecer, a agenda padrão para novos compromissos e a lista padrão das demandas.
+4. Escolha as agendas que vão aparecer e a agenda padrão para novos itens.
 5. (Opcional) Em **Lembretes**, ative os avisos.
 
 ### 6. No celular
@@ -136,7 +136,7 @@ Não há etapa de build: o código fica em `index.html`, `css/` e `js/` (módulo
 index.html, manifest.webmanifest, sw.js   app e PWA
 css/app.css                               visual (claro/escuro, responsivo)
 js/app.js                                 navegação, eventos, sincronização
-js/data.js                                junta Outlook + Google + Tasks
+js/data.js                                junta Outlook + Google Agenda (itens e concluídos)
 js/outlook.js                             leitura do ICS e recorrências
 js/google.js                              login OAuth (PKCE) e APIs do Google
 js/demo.js                                modo demonstração

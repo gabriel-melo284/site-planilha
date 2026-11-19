@@ -13,7 +13,7 @@ import { renderList, renderListResults } from './views/list.js';
 import { renderToday } from './views/today.js';
 import { renderTasks } from './views/tasks.js';
 import { renderSettings } from './views/settings.js';
-import { openEventDetail, openItemForm, openTask } from './views/forms.js';
+import { openEventDetail, openItemForm, toggleItem } from './views/forms.js';
 import { startReminders, requestPermission, show as showNotification, permission } from './notify.js';
 
 const settings = loadSettings();
@@ -32,7 +32,6 @@ const state = {
   search: '',
   health: null,
   showDone: false,
-  taskFilter: '',
 };
 
 const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
@@ -142,7 +141,7 @@ function calTitle() {
 // ---------- Estrutura (sidebar, topo, barra inferior) ----------
 const pendingCount = () => {
   const today = ymd(new Date());
-  return data.st.tasks.filter((t) => !t.done && !t.parent && t.due && t.due <= today).length;
+  return data.googleOn() ? data.dueNow().length : 0;
 };
 
 function isConfigured() {
@@ -172,7 +171,6 @@ function renderSidebar() {
       <h3>Agendas</h3>
       ${data.hasOutlook() ? calToggle('work', settings.workName, settings.workColor, settings.showWork) : ''}
       ${cals.map((c) => calToggle('g:' + c.id, c.name, data.calColor(c.id), !!settings.calendars[c.id]?.visible)).join('')}
-      ${data.googleOn() ? calToggle('tasks', 'Demandas', settings.taskColor, settings.showTasks) : ''}
     </div>` : ''}
     <div class="side-foot">
       ${settings.demo ? '<div class="sync-line"><span class="dot off"></span>Modo demonstração</div>' : ''}
@@ -341,6 +339,8 @@ function render() {
 
 // ---------- Eventos de interface (delegação) ----------
 const findEvent = (id) => {
+  const it = data.st.items.find((e) => e.id === id);
+  if (it) return data.items().find((e) => e.id === id) || it;
   // procura em uma janela ampla em torno da data atual
   const from = addDays(startOfMonth(state.date), -45);
   const to = addDays(startOfMonth(state.date), 75);
@@ -349,20 +349,8 @@ const findEvent = (id) => {
     data.eventsIn(addDays(new Date(), -7), addDays(new Date(), 14)).find((e) => e.id === id)
   );
 };
-const findTask = (id) => data.st.tasks.find((t) => t.id === id);
 
-async function toggleTask(id) {
-  const t = findTask(id);
-  if (!t) return;
-  try {
-    await data.toggleTask(t);
-    if (!t.done) toast('Demanda concluída ✓', 'ok', 2000);
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
-
-function newItem(isTask = state.page === 'tasks') {
+function newItem() {
   if (!isConfigured()) return;
   if (state.page === 'calendar') {
     // começa no dia que está aberto no calendário
@@ -371,24 +359,20 @@ function newItem(isTask = state.page === 'tasks') {
     const now = new Date();
     if (sameDay(s, now)) s.setHours(Math.min(now.getHours() + 1, 23), 0, 0, 0);
     else s.setHours(9, 0, 0, 0);
-    return openItemForm(ctx, {}, { start: s, end: new Date(s.getTime() + 3600e3), isTask });
+    return openItemForm(ctx, {}, { start: s, end: new Date(s.getTime() + 3600e3) });
   }
-  openItemForm(ctx, {}, { isTask });
+  openItemForm(ctx);
 }
 
 document.addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('.modal-wrap')) return; // modais tratam seus próprios cliques
 
-  const toggle = t.closest('[data-toggle-task]');
+  const toggle = t.closest('[data-toggle-done]');
   if (toggle) {
     e.stopPropagation();
-    return toggleTask(toggle.dataset.toggleTask);
-  }
-  const taskEl = t.closest('[data-task]');
-  if (taskEl) {
-    const task = findTask(taskEl.dataset.task);
-    return task && openTask(ctx, task);
+    const ev = findEvent(toggle.dataset.toggleDone);
+    return ev && toggleItem(ctx, ev);
   }
   const evEl = t.closest('[data-ev]');
   if (evEl && !t.closest('a')) {
@@ -404,7 +388,7 @@ document.addEventListener('click', async (e) => {
   const v = t.closest('[data-view]');
   if (v) return setCalView(v.dataset.view);
   const st = t.closest('[data-step]');
-  if (st) return step(Number(st.dataset.step));
+  if (st) return slideStep(Number(st.dataset.step));
   const gd = t.closest('[data-goto-day]');
   if (gd) {
     state.date = parseYmd(gd.dataset.gotoDay);
@@ -434,11 +418,6 @@ document.addEventListener('click', async (e) => {
     if (state.page !== 'calendar') navigate('calendar');
     return scheduleRender();
   }
-  const filter = t.closest('[data-task-filter]');
-  if (filter) {
-    state.taskFilter = filter.dataset.taskFilter;
-    return scheduleRender();
-  }
   const themeBtn = t.closest('[data-theme-set]');
   if (themeBtn) {
     settings.theme = themeBtn.dataset.themeSet;
@@ -455,8 +434,6 @@ async function handleAction(a, btn) {
   switch (a) {
     case 'new':
       return newItem();
-    case 'new-task':
-      return newItem(true);
     case 'today':
       return goToday();
     case 'refresh':
@@ -486,8 +463,7 @@ async function handleAction(a, btn) {
       if (!ok) return;
       await data.st.provider.disconnect();
       data.st.calendars = [];
-      data.st.tasks = [];
-      data.st.taskLists = [];
+      data.st.items = [];
       data.setupProvider();
       return scheduleRender();
     }
@@ -533,8 +509,7 @@ async function setDemo(on) {
   settings.demo = on;
   persist();
   data.st.calendars = [];
-  data.st.tasks = [];
-  data.st.taskLists = [];
+  data.st.items = [];
   data.st.outlook.parsed = null;
   data.st.outlook.error = null;
   data.st.google.error = null;
@@ -556,7 +531,6 @@ document.addEventListener('change', async (e) => {
   if (t.dataset.calToggle) {
     const k = t.dataset.calToggle;
     if (k === 'work') settings.showWork = t.checked;
-    else if (k === 'tasks') settings.showTasks = t.checked;
     else {
       const id = k.slice(2);
       settings.calendars[id] = { ...(settings.calendars[id] || {}), visible: t.checked };
@@ -603,10 +577,6 @@ document.addEventListener('change', async (e) => {
     return scheduleRender();
   }
   if (t.dataset.actChange === 'demo') return setDemo(t.checked);
-  if (t.matches('[data-task-list-filter]')) {
-    state.taskFilter = t.value;
-    return scheduleRender();
-  }
 });
 
 // Formulários na página (ponte, adição rápida)
@@ -676,24 +646,86 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'n') {
     e.preventDefault();
     newItem();
-  } else if (state.page === 'calendar' && e.key === 'ArrowLeft') step(-1);
-  else if (state.page === 'calendar' && e.key === 'ArrowRight') step(1);
+  } else if (state.page === 'calendar' && e.key === 'ArrowLeft') slideStep(-1);
+  else if (state.page === 'calendar' && e.key === 'ArrowRight') slideStep(1);
 });
 
-// Gesto de deslizar no celular (calendário)
+// ---------- Deslizar entre períodos (gesto e setas, com animação) ----------
+const viewEl = document.getElementById('view');
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+let sliding = false;
+
+/** Troca de período deslizando: o atual sai para um lado e o novo entra pelo outro. */
+async function slideStep(dir) {
+  if (sliding) return;
+  if (reduceMotion() || state.page !== 'calendar') return step(dir);
+  sliding = true;
+  const w = viewEl.clientWidth;
+  const cur = new DOMMatrixReadOnly(getComputedStyle(viewEl).transform).m41 || 0;
+  const outMs = Math.max(90, 180 * (1 - Math.abs(cur) / w));
+  viewEl.style.transition = `transform ${outMs}ms ease-in, opacity ${outMs}ms ease-in`;
+  viewEl.style.transform = `translateX(${-dir * w * 0.45}px)`;
+  viewEl.style.opacity = '0';
+  await wait(outMs);
+  step(dir);
+  render();
+  viewEl.style.transition = 'none';
+  viewEl.style.transform = `translateX(${dir * w * 0.3}px)`;
+  void viewEl.offsetWidth; // aplica a posição inicial antes de animar
+  viewEl.style.transition = 'transform 220ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease-out';
+  viewEl.style.transform = '';
+  viewEl.style.opacity = '';
+  await wait(230);
+  viewEl.style.transition = '';
+  sliding = false;
+}
+
+function snapBack() {
+  viewEl.style.transition = 'transform 200ms cubic-bezier(.2,.8,.2,1), opacity 200ms';
+  viewEl.style.transform = '';
+  viewEl.style.opacity = '';
+  setTimeout(() => (viewEl.style.transition = ''), 210);
+}
+
+// O conteúdo acompanha o dedo; ao soltar, decide se troca de período ou volta ao lugar.
 let touch = null;
-document.getElementById('view').addEventListener('touchstart', (e) => {
-  if (state.page !== 'calendar' || e.touches.length !== 1) return;
-  touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+viewEl.addEventListener('touchstart', (e) => {
+  if (state.page !== 'calendar' || state.calView === 'list' || sliding || e.touches.length !== 1) return;
+  touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), lock: null, dx: 0 };
 }, { passive: true });
-document.getElementById('view').addEventListener('touchend', (e) => {
+
+viewEl.addEventListener('touchmove', (e) => {
+  if (!touch || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - touch.x;
+  const dy = e.touches[0].clientY - touch.y;
+  if (!touch.lock) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    // decide uma vez: arraste lateral (trocar período) ou rolagem vertical
+    touch.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+    if (touch.lock === 'x') viewEl.classList.add('swiping');
+  }
+  if (touch.lock !== 'x') return;
+  touch.dx = dx;
+  const w = viewEl.clientWidth;
+  viewEl.style.transition = 'none';
+  viewEl.style.transform = `translateX(${dx * 0.85}px)`;
+  viewEl.style.opacity = String(1 - Math.min(Math.abs(dx) / w, 1) * 0.4);
+}, { passive: true });
+
+const endTouch = (cancelled) => {
   if (!touch) return;
-  const dx = e.changedTouches[0].clientX - touch.x;
-  const dy = e.changedTouches[0].clientY - touch.y;
-  const fast = Date.now() - touch.t < 600;
+  const { lock, dx, t } = touch;
   touch = null;
-  if (fast && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2 && state.calView !== 'list') step(dx < 0 ? 1 : -1);
-}, { passive: true });
+  viewEl.classList.remove('swiping');
+  if (lock !== 'x') return;
+  const w = viewEl.clientWidth;
+  const fast = Date.now() - t < 300 && Math.abs(dx) > 40;
+  if (!cancelled && (Math.abs(dx) > w * 0.22 || fast)) slideStep(dx < 0 ? 1 : -1);
+  else snapBack();
+};
+viewEl.addEventListener('touchend', () => endTouch(false), { passive: true });
+viewEl.addEventListener('touchcancel', () => endTouch(true), { passive: true });
 
 // ---------- Sincronização automática ----------
 let refreshTimer = null;
@@ -778,7 +810,7 @@ async function init() {
   startReminders(
     () => {
       const d0 = startOfDay(new Date());
-      return { events: data.eventsIn(d0, addDays(d0, 2)), tasks: data.st.tasks, settings };
+      return { events: data.eventsIn(d0, addDays(d0, 2)), items: data.googleOn() ? data.dueNow() : [], settings };
     },
     (msg) => toast(msg, 'info', 8000),
   );

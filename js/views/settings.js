@@ -56,18 +56,16 @@ export function renderSettings(ctx) {
     .join('');
 
   const googleCard = `<div class="card">
-    <h3>Google — compromissos pessoais e demandas</h3>
+    <h3>Google Agenda — seus itens</h3>
     ${s.demo
       ? '<p class="muted">Modo demonstração ativo: os dados pessoais são fictícios.</p>'
       : data.googleOn()
         ? `${statusRow(!g.error, 'Conectado', `${esc(acc?.email || '')} · sincronizado ${ago(g.lastSync)}${g.error ? ' · ' + esc(g.error) : ''}`)}
            <div style="margin:10px 0 4px"><button class="btn btn-sm btn-danger-ghost" data-act="google-logout">Desconectar</button></div>`
-        : `<p class="muted">${data.st.provider.isExpired?.() ? 'A autorização expirou. ' : ''}Conecte para ver e criar compromissos no Google Agenda e usar o Google Tasks como lista de demandas.</p>
+        : `<p class="muted">${data.st.provider.isExpired?.() ? 'A autorização expirou. ' : ''}Conecte para ver e cadastrar seus itens no Google Agenda.</p>
            <button class="btn btn-primary" data-act="google-login" ${s.workerUrl ? '' : 'disabled'}>Conectar Google</button>
            <p class="hint" style="margin-top:10px">URI de redirecionamento para cadastrar no Google Cloud: <code>${esc(redirectUri())}</code></p>`}
     ${data.st.calendars.length ? `<div class="field-label" style="margin-top:14px">Agendas exibidas</div>${googleCals}` : ''}
-    ${data.st.taskLists.length ? `<label class="field" style="margin-top:14px"><span>Lista padrão para novas demandas</span>
-      <select class="input" data-setting="taskList">${data.st.taskLists.map((l) => `<option value="${esc(l.id)}" ${s.taskList === l.id ? 'selected' : ''}>${esc(l.title)}</option>`).join('')}</select></label>` : ''}
   </div>`;
 
   const workCard = `<div class="card">
@@ -95,9 +93,6 @@ export function renderSettings(ctx) {
       <label class="field"><span>Rolar o dia até</span>
         <select class="input" data-setting="dayStartHour" data-num>${[5, 6, 7, 8, 9, 10].map((hh) => `<option value="${hh}" ${s.dayStartHour === hh ? 'selected' : ''}>${hh}:00</option>`).join('')}</select></label>
     </div>
-    <div class="row">
-      <label class="field"><span>Cor das demandas</span><input class="input" type="color" data-setting="taskColor" value="${esc(s.taskColor)}" style="width:56px;padding:4px"></label>
-    </div>
   </div>`;
 
   const notifyCard = `<div class="card">
@@ -108,10 +103,10 @@ export function renderSettings(ctx) {
     <div class="row">
       <label class="field"><span>Antecedência</span>
         <select class="input" data-notify="lead">${[0, 1, 5, 10, 15, 30, 60].map((m) => `<option value="${m}" ${Number(s.notify.lead) === m ? 'selected' : ''}>${m ? m + ' min antes' : 'Na hora'}</option>`).join('')}</select></label>
-      <label class="field"><span>Resumo de demandas às</span>
+      <label class="field"><span>Resumo dos pendentes às</span>
         <input class="input" type="time" data-notify="taskTime" value="${esc(s.notify.taskTime)}"></label>
     </div>
-    <label class="check" style="margin-bottom:12px"><input type="checkbox" data-notify="tasks" ${s.notify.tasks ? 'checked' : ''}> Avisar demandas que vencem hoje</label>
+    <label class="check" style="margin-bottom:12px"><input type="checkbox" data-notify="tasks" ${s.notify.tasks ? 'checked' : ''}> Resumo diário do que está pendente</label>
     <div><button class="btn btn-sm" data-act="test-notify">${icon('bell')}Testar aviso</button></div>
     <p class="hint" style="margin:10px 0 0">Os lembretes funcionam com o app aberto (pode estar em segundo plano). O Outlook e o Google Agenda continuam enviando os avisos deles normalmente.</p>
   </div>`;

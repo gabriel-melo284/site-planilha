@@ -39,12 +39,9 @@ export const DEFAULTS = {
   refreshMin: 5,
   workName: 'Trabalho (Outlook)',
   workColor: '#2563eb',
-  taskColor: '#d97706',
   showWork: true,
-  showTasks: true,
   calendars: {}, // id do Google → { visible, color }
   defaultCalendar: null,
-  taskList: null,
   view: 'week',
   notify: { enabled: false, lead: 10, tasks: true, taskTime: '09:00' },
 };

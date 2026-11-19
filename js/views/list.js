@@ -4,12 +4,11 @@ import { addDays, fFull, fRelativeDay, hm, isToday, startOfDay } from '../dates.
 
 export function sourceTag(ev) {
   if (ev.source === 'outlook') return `<span class="tag tag-work" style="--c:${esc(ev.color)}">${icon('briefcase')}Trabalho</span>`;
-  if (ev.source === 'task') return `<span class="tag tag-warn">${icon('tasks')}Demanda</span>`;
   return `<span class="tag">${icon('user')}${esc(ev.calendarName || 'Pessoal')}</span>`;
 }
 
 export function itemRow(ev, { now = new Date(), compact = false } = {}) {
-  const when = ev.source === 'task' ? 'Prazo' : ev.allDay ? 'Dia todo' : `${hm(ev.start)}<br><span class="faint">${hm(ev.end)}</span>`;
+  const when = ev.allDay ? 'Dia todo' : `${hm(ev.start)}<br><span class="faint">${hm(ev.end)}</span>`;
   const past = !ev.allDay && ev.end < now;
   const current = !ev.allDay && ev.start <= now && ev.end > now;
   const sub = [];
@@ -21,7 +20,7 @@ export function itemRow(ev, { now = new Date(), compact = false } = {}) {
     <span class="bar"></span>
     <span class="when">${when}</span>
     <span class="what">
-      <span class="t">${ev.conflicts?.length ? `<span class="badge-warn" title="Conflito">${icon('alert')}</span>` : ''}${ev.taskId ? icon('target') : ''}${esc(ev.title)}</span>
+      <span class="t">${ev.conflicts?.length ? `<span class="badge-warn" title="Conflito">${icon('alert')}</span>` : ''}${ev.done ? icon('check') : ''}${esc(ev.title)}</span>
       ${sub.length ? `<span class="s">${sub.join('')}</span>` : ''}
     </span>
   </button>`;
