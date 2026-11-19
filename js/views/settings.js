@@ -135,6 +135,7 @@ export function renderSettings(ctx) {
       ${s.demo ? '<button class="btn btn-sm" data-act="demo-reset">Restaurar dados de exemplo</button>' : ''}
       <button class="btn btn-sm btn-danger-ghost" data-act="clear-all">${icon('trash')}Apagar dados deste navegador</button>
     </div>
+    <p class="hint" style="margin:10px 0 0"><a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a></p>
     <p class="hint" style="margin:10px 0 0">Atalhos no computador: <code>T</code> hoje · <code>D</code> <code>S</code> <code>M</code> <code>L</code> visões · <code>←</code> <code>→</code> navegar · <code>N</code> novo.</p>
   </div>`;
 
