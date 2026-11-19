@@ -47,6 +47,7 @@ function seed() {
       { gid: 'e4', calendarId: 'pessoal', title: 'Corrida no parque', start: iso(at(today, 0, 18, 30)), end: iso(at(today, 0, 19, 30)) },
       { gid: 'e5', calendarId: 'familia', title: 'Aniversário da Bia', start: ymd(addDays(mon, 5)), end: ymd(addDays(mon, 6)), allDay: true },
       { gid: 'e6', calendarId: 'pessoal', title: 'Médico — check-up', start: iso(at(today, 0, 16, 30)), end: iso(at(today, 0, 17, 15)), location: 'Hospital Central' },
+      { gid: 'e7', calendarId: 'pessoal', title: 'Revisar proposta do fornecedor', start: iso(at(today, 0, 13)), end: iso(at(today, 0, 14)), taskId: 't3' },
     ],
     taskLists: [{ id: 'default', title: 'Minhas tarefas' }],
     tasks: [
